@@ -1,74 +1,211 @@
 import pandas as pd
+import os
 import numpy as np
-import PyPDF2
+import re
+import tabula
+from datetime import datetime
+from pandas.io.formats import (
+    console,
+    format as fmt,
+)
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    IO,
+    overload,
+    Literal,
+    Sequence,
+    Hashable,
+)
 
 
 class ExtractStatistics:
-    def __init__(self, file_path: str) -> None:
+    def __init__(
+        self,
+        file_path: Union[str, os.PathLike],
+        pages: Optional[Union[str, int, Iterable[int]]] = "all",
+        area: Optional[Union[Iterable[float], Iterable[Iterable[float]]]] = None,
+        password: Optional[str] = None,
+        date_format: Optional[str] = "%d-%m-%Y %H:%M:%S",
+        log: Optional[bool] = False,
+    ) -> None:
+        self._date_format = date_format
+        self._logging = log
+
         if file_path.lower().endswith(".pdf"):
-            self._read_pdf(file_path)
+            self._read_pdf(file_path, pages, area, password)
 
-        self._extract_legend()
-        self._extract_types()
+    # def __del__(self) -> None:
+    #     self._content
 
-    def __del__(self) -> None:
-        self.content = ""
-        self.header = tuple()
+    def __str__(self) -> str:
+        return self._content.to_string()
 
-    def _read_pdf(self, file_path) -> None:
-        with open(file_path, "rb"):
-            reader = PyPDF2.PdfReader(file_path)
-            text = ""
+    def __getitem__(self, value: str) -> pd.DataFrame:
+        return self._content[value].to_string(index=False)
 
-            for page in reader.pages:
-                text = f"{text}{page.extract_text()}"
+    @property
+    def shape(self) -> tuple[int, int]:
+        return self._content.shape
 
-        self.content = text
+    @property
+    def columns(self) -> list:
+        return list(self._content.columns)
 
-    def _extract_legend(self) -> None:
-        max_length = 0
+    @columns.setter
+    def columns(self, new_value: list) -> None:
+        length = len(new_value)
+        expected_length = len(self.columns)
 
-        for line in self.content.split("\n"):
-            data = [
-                element.strip().replace(" ", "")
-                for element in line.split(" ")
-                if element.strip()
-            ]
+        if expected_length != length:
+            raise ValueError(
+                f"Expected length is {expected_length}, but new object's length is {length}"
+            )
+        self._content.columns = new_value
 
-            if len(data) > max_length:
-                max_length = len(data)
+    @property
+    def data_types(self) -> list:
+        list(self._content.dtypes)
 
-        for line in self.content.split("\n"):
-            data = [
-                element.strip().replace(" ", "")
-                for element in line.split(" ")
-                if element.strip()
-            ]
+    @data_types.setter
+    def data_types(self, new_value: list) -> None:
+        length = len(new_value)
+        expected_length = len(self.data_types)
 
-            if len(data) == max_length:
-                self.header = data.copy()
-                break
+        if expected_length != length:
+            raise ValueError(
+                f"Expected length is {expected_length}, but new object's length is {length}"
+            )
+        self._content.dtypes = new_value
 
-    def _extract_types(self) -> None:
-        bufor = self.content
-        self.content = np.array()
+    def _log(
+        self,
+        *values: object,
+        type: str | None = "info",
+        sep: str | None = " ",
+        end: str | None = "\n",
+    ) -> None:
+        current_time = datetime.now()
 
-        for line in bufor.split("\n"):
-            line = [
-                element.strip().replace(" ", "")
-                for element in line.split(" ")
-                if element.strip()
-            ]
-            self.content = f"{self.content}{line}"
-            print(line)
+        print(
+            f"[{current_time.strftime(self._date_format)}][{type.upper()}]\t",
+            *values,
+            sep=sep,
+            end=end,
+        )
+
+    def _read_pdf(
+        self,
+        file_path: Union[str, os.PathLike],
+        pages: Optional[Union[str, int, Iterable[int]]] = "all",
+        area: Optional[Union[Iterable[float], Iterable[Iterable[float]]]] = None,
+        password: Optional[str] = None,
+    ) -> None:
+        try:
+            tables = tabula.read_pdf(
+                file_path,
+                pages=pages,
+                area=area,
+                password=password,
+            )
+
+        except FileNotFoundError:
+            self._log(f"File '{file_path}' not exists", type="error")
+            raise
+
+        except ValueError:
+            self._log(f"File '{file_path}' is empty", type="error")
+            raise
+
+        except Exception:
+            self._log("Unknown error. More details below", type="error")
+            raise
+
+        if self._logging:
+            self._log(f"File '{file_path}' read correctly")
+
+        merged_table = tables[0].copy()
+
+        for table in tables[1:]:
+            table.columns = merged_table.columns
+            merged_table = pd.concat([merged_table, table])
+
+        merged_table.reset_index(drop=True, inplace=True)
+
+        self._content = merged_table
+
+        if self._logging:
+            self._log("Data processing finished. No problems found")
+
+    def _is_integer(self, object: str) -> bool:
+        pattern = r"^-?\d+$"
+        return bool(re.match(pattern, object))
+
+    def _is_float(self, object: str) -> bool:
+        pattern = r"^[-+]?\d*[\.,]\d+$"
+        return bool(re.match(pattern, object))
+
+    def _is_string(self, object: str) -> bool:
+        pattern = r"^[a-zA-Z\s]+$"
+        return bool(re.match(pattern, object))
+
+    # def _extract_types(self) -> None:
+    #     bufor = self._content
+    #     self._content = [[] for _ in range(len(bufor.split("\n")))]
+    #     iterator = 0
+
+    #     for line in bufor.split("\n"):
+    #         line = [
+    #             element.strip().replace(" ", "")
+    #             for element in line.split(" ")
+    #             if element.strip()
+    #         ]
+    #         self._content[iterator] = line
+    #         iterator += 1
+
+    #     # Other types occurence: [int, float, str]
+    #     check_occurance = [[0, 0, 0] for _ in range(len(self.header))]
+
+    #     for line in self._content:
+    #         if len(line) != len(self.header) or line == self.header:
+    #             continue
+
+    #         for i in range(len(self.header)):
+    #             is_number = False
+
+    #             if self._is_integer(line[i]):
+    #                 check_occurance[i][0] += 1
+    #                 is_number = True
+
+    #             if self._is_float(line[i]):
+    #                 check_occurance[i][1] += 1
+    #                 is_number = True
+
+    #             if not is_number:
+    #                 check_occurance[i][2] += 1
+    #                 print(line[i])
+
+    #     print(check_occurance)
+
+    #     self.type = [type for _ in range(len(self.header))]
+
+    #     for i in range(len(self.type)):
+    #         if check_occurance[i][1] == 0 and check_occurance[i][2] == 0:
+    #             self.type[i] = int
+
+    #         elif check_occurance[i][0] == 0 and check_occurance[i][2] == 0:
+    #             self.type[i] = float
+
+    #         elif check_occurance[i][0] == 0 and check_occurance[i][1] == 0:
+    #             self.type[i] = str
 
 
 data = ExtractStatistics("PP-W-ST-lista-2023.06.19-teoria.pdf")
+data.columns = ["Index", "Surname", "Name", "Group", "Points", "Theory", "Practice"]
 
-print(data.header)
-# print(data.content)
-
-# for line in formated_data.split("\n"):
-#     if len(line) > 2 and "page" not in line.lower():
-#         data = line.split(" ")
-#         print(data)
+print(data)
