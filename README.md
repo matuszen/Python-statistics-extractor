@@ -1,4 +1,4 @@
-# PDF AutoStat
+# Python-statistics-extractor
 
 The project is a Python class called `ExtractStatistics` that provides methods to extract data from PDF files and perform various operations on the extracted data.
 
