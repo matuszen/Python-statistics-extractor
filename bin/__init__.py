@@ -1,26 +1,12 @@
 import pandas as pd
 import os
-import numpy as np
 import re
 import tabula
 from datetime import datetime
-from pandas.io.formats import (
-    console,
-    format as fmt,
-)
 from typing import (
-    Any,
-    Dict,
     Iterable,
-    List,
     Optional,
-    Tuple,
     Union,
-    IO,
-    overload,
-    Literal,
-    Sequence,
-    Hashable,
 )
 
 
@@ -153,59 +139,3 @@ class ExtractStatistics:
     def _is_string(self, object: str) -> bool:
         pattern = r"^[a-zA-Z\s]+$"
         return bool(re.match(pattern, object))
-
-    # def _extract_types(self) -> None:
-    #     bufor = self._content
-    #     self._content = [[] for _ in range(len(bufor.split("\n")))]
-    #     iterator = 0
-
-    #     for line in bufor.split("\n"):
-    #         line = [
-    #             element.strip().replace(" ", "")
-    #             for element in line.split(" ")
-    #             if element.strip()
-    #         ]
-    #         self._content[iterator] = line
-    #         iterator += 1
-
-    #     # Other types occurence: [int, float, str]
-    #     check_occurance = [[0, 0, 0] for _ in range(len(self.header))]
-
-    #     for line in self._content:
-    #         if len(line) != len(self.header) or line == self.header:
-    #             continue
-
-    #         for i in range(len(self.header)):
-    #             is_number = False
-
-    #             if self._is_integer(line[i]):
-    #                 check_occurance[i][0] += 1
-    #                 is_number = True
-
-    #             if self._is_float(line[i]):
-    #                 check_occurance[i][1] += 1
-    #                 is_number = True
-
-    #             if not is_number:
-    #                 check_occurance[i][2] += 1
-    #                 print(line[i])
-
-    #     print(check_occurance)
-
-    #     self.type = [type for _ in range(len(self.header))]
-
-    #     for i in range(len(self.type)):
-    #         if check_occurance[i][1] == 0 and check_occurance[i][2] == 0:
-    #             self.type[i] = int
-
-    #         elif check_occurance[i][0] == 0 and check_occurance[i][2] == 0:
-    #             self.type[i] = float
-
-    #         elif check_occurance[i][0] == 0 and check_occurance[i][1] == 0:
-    #             self.type[i] = str
-
-
-data = ExtractStatistics("PP-W-ST-lista-2023.06.19-teoria.pdf")
-data.columns = ["Index", "Surname", "Name", "Group", "Points", "Theory", "Practice"]
-
-print(data)
